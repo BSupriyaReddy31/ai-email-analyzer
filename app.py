@@ -78,12 +78,15 @@ with col1:
                 scopes = ['https://www.googleapis.com/auth/gmail.readonly']
                 
                 if not st.session_state.gmail_creds:
-                    # Simplify the flow to prevent Streamlit memory loss
-                    flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
-                    auth_url, _ = flow.authorization_url(prompt='consent')
+                    # 1. Generate the link and SAVE the secret verifier in memory
+                    if 'auth_url' not in st.session_state:
+                        flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
+                        auth_url, _ = flow.authorization_url(prompt='consent')
+                        st.session_state.auth_url = auth_url
+                        st.session_state.code_verifier = flow.code_verifier # <--- The Magic Fix
 
-                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({auth_url})")
-                    st.info("After logging in, ignore the 'Site can't be reached' error. Just copy the **ENTIRE URL** from the top of your browser and paste it below.")
+                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({st.session_state.auth_url})")
+                    st.info("After logging in, ignore the 'Site can't be reached' error. Copy the **ENTIRE URL** from the top of your browser and paste it below.")
                     
                     user_input = st.text_input("**Step 2:** Paste the ENTIRE URL here:")
                     
@@ -91,24 +94,25 @@ with col1:
                         if not user_input:
                             st.warning("Please paste the URL first!")
                         else:
-                            with st.spinner("Decoding URL and connecting..."):
+                            with st.spinner("Authenticating with Google..."):
                                 try:
-                                    # Bulletproof URL parsing to extract the exact code
                                     if "localhost" in user_input:
                                         parsed_url = urllib.parse.urlparse(user_input)
                                         extracted_code = urllib.parse.parse_qs(parsed_url.query)['code'][0]
                                     else:
                                         extracted_code = user_input
                                     
-                                    # Ensure it's perfectly decoded (fixes the %2F issue)
                                     extracted_code = urllib.parse.unquote(extracted_code).strip()
 
-                                    # Explicitly fetch using just the code, bypassing Streamlit state bugs
+                                    # 2. Rebuild the flow and INJECT the saved verifier
+                                    flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
+                                    flow.code_verifier = st.session_state.code_verifier # <--- Injecting it back
+                                    
                                     flow.fetch_token(code=extracted_code)
                                     st.session_state.gmail_creds = flow.credentials.to_json()
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Error: Could not validate code. Please refresh the page and generate a new link. (Details: {e})")
+                                    st.error(f"Error: {e}")
                 else:
                     st.success("✅ Securely connected to Gmail!")
                     try:
@@ -137,7 +141,6 @@ with col1:
                                 
                     except Exception as e:
                         st.error(f"Error fetching emails: {e}")
-
         analyze_clicked = st.button("⚡ Analyze Email", use_container_width=True)
 
 # --- 4. Processing & State Updates ---
