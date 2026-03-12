@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from gtts import gTTS
 import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 import json
 import base64
 from google.oauth2.credentials import Credentials
