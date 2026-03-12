@@ -90,7 +90,7 @@ with col1:
                 height=300, 
                 label_visibility="collapsed"
             )
-       with tab2:
+        with tab2:
             # Professional "Coming Soon" UI for the presentation
             st.markdown("""
                 <div style="text-align: center; padding: 40px 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 10px;">
