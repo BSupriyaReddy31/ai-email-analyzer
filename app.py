@@ -5,6 +5,7 @@ import os
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 import json
 import base64
+import urllib.parse
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -77,45 +78,43 @@ with col1:
                 scopes = ['https://www.googleapis.com/auth/gmail.readonly']
                 
                 if not st.session_state.gmail_creds:
-                    # Save OAuth state in session memory so Streamlit doesn't forget it on button click!
-                    if 'oauth_state' not in st.session_state:
-                        flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
-                        auth_url, state = flow.authorization_url(prompt='consent')
-                        st.session_state.auth_url = auth_url
-                        st.session_state.oauth_state = state
+                    # Simplify the flow to prevent Streamlit memory loss
+                    flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
+                    auth_url, _ = flow.authorization_url(prompt='consent')
 
-                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({st.session_state.auth_url})")
+                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({auth_url})")
                     st.info("After logging in, ignore the 'Site can't be reached' error. Just copy the **ENTIRE URL** from the top of your browser and paste it below.")
                     
-                    full_url = st.text_input("**Step 2:** Paste the ENTIRE URL here (starting with http://localhost...):")
+                    user_input = st.text_input("**Step 2:** Paste the ENTIRE URL here:")
                     
                     if st.button("Connect Inbox"):
-                        if not full_url:
+                        if not user_input:
                             st.warning("Please paste the URL first!")
                         else:
-                            with st.spinner("Connecting to Gmail..."):
+                            with st.spinner("Decoding URL and connecting..."):
                                 try:
-                                    # Recreate the exact flow using our saved memory state
-                                    flow = Flow.from_client_config(
-                                        client_config, 
-                                        scopes=scopes, 
-                                        state=st.session_state.oauth_state, 
-                                        redirect_uri='http://localhost'
-                                    )
-                                    # Let the library extract the code from the full URL automatically
-                                    flow.fetch_token(authorization_response=full_url)
+                                    # Bulletproof URL parsing to extract the exact code
+                                    if "localhost" in user_input:
+                                        parsed_url = urllib.parse.urlparse(user_input)
+                                        extracted_code = urllib.parse.parse_qs(parsed_url.query)['code'][0]
+                                    else:
+                                        extracted_code = user_input
+                                    
+                                    # Ensure it's perfectly decoded (fixes the %2F issue)
+                                    extracted_code = urllib.parse.unquote(extracted_code).strip()
+
+                                    # Explicitly fetch using just the code, bypassing Streamlit state bugs
+                                    flow.fetch_token(code=extracted_code)
                                     st.session_state.gmail_creds = flow.credentials.to_json()
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Authentication failed. Please refresh the page and try again. Error: {e}")
+                                    st.error(f"Error: Could not validate code. Please refresh the page and generate a new link. (Details: {e})")
                 else:
                     st.success("✅ Securely connected to Gmail!")
                     try:
-                        # Build Gmail Service
                         creds = Credentials.from_authorized_user_info(json.loads(st.session_state.gmail_creds), scopes)
                         service = build('gmail', 'v1', credentials=creds)
                         
-                        # Fetch last 5 emails
                         results = service.users().messages().list(userId='me', maxResults=5).execute()
                         messages = results.get('messages', [])
                         
