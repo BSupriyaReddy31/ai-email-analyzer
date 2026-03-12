@@ -57,6 +57,7 @@ if 'gmail_creds' not in st.session_state:
     st.session_state.gmail_creds = None
 
 email_text_to_analyze = ""
+analyze_clicked = False  # We track the button clicks here now!
 
 with col1:
     with st.container(border=True):
@@ -66,8 +67,11 @@ with col1:
         # --- TAB 1: PASTE TEXT ---
         with tab1:
             manual_text = st.text_area("Paste your email text here...", height=250, label_visibility="collapsed")
-            if manual_text:
+            
+            # Button SPECIFIC to the pasted text
+            if st.button("⚡ Analyze Pasted Text", use_container_width=True):
                 email_text_to_analyze = manual_text
+                analyze_clicked = True
 
         # --- TAB 2: GMAIL API ---
         with tab2:
@@ -78,12 +82,11 @@ with col1:
                 scopes = ['https://www.googleapis.com/auth/gmail.readonly']
                 
                 if not st.session_state.gmail_creds:
-                    # 1. Generate the link and SAVE the secret verifier in memory
                     if 'auth_url' not in st.session_state:
                         flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
                         auth_url, _ = flow.authorization_url(prompt='consent')
                         st.session_state.auth_url = auth_url
-                        st.session_state.code_verifier = flow.code_verifier # <--- The Magic Fix
+                        st.session_state.code_verifier = flow.code_verifier 
 
                     st.markdown(f"**Step 1:** [Click here to securely log in with Google]({st.session_state.auth_url})")
                     st.info("After logging in, ignore the 'Site can't be reached' error. Copy the **ENTIRE URL** from the top of your browser and paste it below.")
@@ -104,9 +107,8 @@ with col1:
                                     
                                     extracted_code = urllib.parse.unquote(extracted_code).strip()
 
-                                    # 2. Rebuild the flow and INJECT the saved verifier
                                     flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
-                                    flow.code_verifier = st.session_state.code_verifier # <--- Injecting it back
+                                    flow.code_verifier = st.session_state.code_verifier 
                                     
                                     flow.fetch_token(code=extracted_code)
                                     st.session_state.gmail_creds = flow.credentials.to_json()
@@ -134,14 +136,18 @@ with col1:
                                 email_dict[subject] = body
                             
                             selected_subject = st.selectbox("Select a recent email to analyze:", list(email_dict.keys()))
-                            email_text_to_analyze = email_dict[selected_subject]
                             
                             with st.expander("Preview Selected Email"):
-                                st.write(email_text_to_analyze)
+                                st.write(email_dict[selected_subject])
+                                
+                            # Button SPECIFIC to the Gmail dropdown
+                            if st.button("⚡ Analyze Selected Email", use_container_width=True):
+                                email_text_to_analyze = email_dict[selected_subject]
+                                analyze_clicked = True
                                 
                     except Exception as e:
                         st.error(f"Error fetching emails: {e}")
-        analyze_clicked = st.button("⚡ Analyze Email", use_container_width=True)
+       
 
 # --- 4. Processing & State Updates ---
 if analyze_clicked:
