@@ -75,26 +75,38 @@ with col1:
                 client_config = json.loads(st.secrets["google_credentials_json"])
                 scopes = ['https://www.googleapis.com/auth/gmail.readonly']
                 
-                # Setup OAuth Flow
-                flow = Flow.from_client_config(
-                    client_config, 
-                    scopes=scopes, 
-                    redirect_uri='http://localhost'
-                )
-
                 if not st.session_state.gmail_creds:
-                    auth_url, _ = flow.authorization_url(prompt='consent')
-                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({auth_url})")
-                    st.info("After logging in, your browser will say 'This site can't be reached'. Look at the URL at the top of your screen, copy the part that says **code=...**, and paste it below.")
+                    # Save OAuth state in session memory so Streamlit doesn't forget it on button click!
+                    if 'oauth_state' not in st.session_state:
+                        flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri='http://localhost')
+                        auth_url, state = flow.authorization_url(prompt='consent')
+                        st.session_state.auth_url = auth_url
+                        st.session_state.oauth_state = state
+
+                    st.markdown(f"**Step 1:** [Click here to securely log in with Google]({st.session_state.auth_url})")
+                    st.info("After logging in, ignore the 'Site can't be reached' error. Just copy the **ENTIRE URL** from the top of your browser and paste it below.")
                     
-                    auth_code = st.text_input("**Step 2:** Paste your Auth Code here:")
+                    full_url = st.text_input("**Step 2:** Paste the ENTIRE URL here (starting with http://localhost...):")
+                    
                     if st.button("Connect Inbox"):
-                        try:
-                            flow.fetch_token(code=auth_code)
-                            st.session_state.gmail_creds = flow.credentials.to_json()
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Invalid code or connection error. Try again.")
+                        if not full_url:
+                            st.warning("Please paste the URL first!")
+                        else:
+                            with st.spinner("Connecting to Gmail..."):
+                                try:
+                                    # Recreate the exact flow using our saved memory state
+                                    flow = Flow.from_client_config(
+                                        client_config, 
+                                        scopes=scopes, 
+                                        state=st.session_state.oauth_state, 
+                                        redirect_uri='http://localhost'
+                                    )
+                                    # Let the library extract the code from the full URL automatically
+                                    flow.fetch_token(authorization_response=full_url)
+                                    st.session_state.gmail_creds = flow.credentials.to_json()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Authentication failed. Please refresh the page and try again. Error: {e}")
                 else:
                     st.success("✅ Securely connected to Gmail!")
                     try:
