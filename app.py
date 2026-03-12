@@ -90,8 +90,20 @@ with col1:
                 height=300, 
                 label_visibility="collapsed"
             )
-        with tab2:
-            st.info("Gmail API integration goes here.")
+       with tab2:
+            # Professional "Coming Soon" UI for the presentation
+            st.markdown("""
+                <div style="text-align: center; padding: 40px 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 10px;">
+                    <div style="font-size: 30px; margin-bottom: 10px;">🚀</div>
+                    <h4 style="color: #2b9e90; margin-bottom: 10px;">Coming Soon in v2.0</h4>
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.5;">
+                        Direct OAuth 2.0 Gmail API integration is currently on the development roadmap. 
+                    </p>
+                    <p style="color: #64748b; font-size: 13px; margin-top: 15px;">
+                        For this prototype, please use the <b>Paste Text</b> tab to analyze your emails!
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
             
         analyze_clicked = st.button("⚡ Analyze Email", use_container_width=True)
 
